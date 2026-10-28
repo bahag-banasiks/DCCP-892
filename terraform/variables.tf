@@ -32,3 +32,11 @@ variable "max_branch_length_override" {
   type        = number
   default     = null
 }
+
+variable "use_enterprise_metadata_rule" {
+  description = "Whether to use GitHub Enterprise Cloud 'branch_name_pattern' metadata rule (true for Enterprise orgs, false for personal GitHub Free accounts where metadata rules return HTTP 422)."
+  type        = bool
+  default     = false
+}
+
+
