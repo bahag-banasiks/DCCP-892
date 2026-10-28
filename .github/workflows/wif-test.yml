@@ -1,0 +1,49 @@
+name: WIF google.subject Length Test
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test-gcp-wif:
+    name: Test OIDC sub & GCP WIF Auth
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Inspect GitHub OIDC Token sub Claim Length
+        run: |
+          TOKEN_RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.googleapis.com")
+          JWT=$(echo "$TOKEN_RESPONSE" | jq -r '.value')
+          PAYLOAD=$(echo "$JWT" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null || true)
+          SUB=$(echo "$PAYLOAD" | jq -r '.sub')
+          SUB_LEN=$(printf "%s" "$SUB" | wc -c | tr -d ' ')
+          BRANCH_LEN=$(printf "%s" "${GITHUB_REF_NAME}" | wc -c | tr -d ' ')
+
+          echo "### GitHub OIDC Subject Inspection" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Branch (\`GITHUB_REF_NAME\`)**: \`${GITHUB_REF_NAME}\` (${BRANCH_LEN} bytes)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **OIDC \`sub\` claim**: \`${SUB}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **OIDC \`sub\` byte length**: **${SUB_LEN} / 127 bytes**" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Branch name: ${GITHUB_REF_NAME} (${BRANCH_LEN} bytes)"
+          echo "OIDC sub:    ${SUB}"
+          echo "Sub length:  ${SUB_LEN} / 127 bytes"
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Verify GCP Authentication
+        run: |
+          echo "Successfully authenticated to GCP via Workload Identity Federation!"
