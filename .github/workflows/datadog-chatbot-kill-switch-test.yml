@@ -1,0 +1,55 @@
+name: Datadog chatbot kill-switch test
+run-name: Datadog kill-switch test (monitor ${{ inputs.monitor_id }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      monitor_id:
+        description: Datadog monitor ID, or manual-test
+        required: true
+        type: string
+        default: manual-test
+      alert_state:
+        description: Only ALERT is accepted; no recovery or re-enable action exists
+        required: true
+        type: string
+        default: ALERT
+
+permissions: {}
+
+jobs:
+  simulate-disable:
+    name: Simulate disabling the chatbot
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate the trigger and record a simulated shutdown
+        env:
+          MONITOR_ID: ${{ inputs.monitor_id }}
+          ALERT_STATE: ${{ inputs.alert_state }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$ALERT_STATE" != "ALERT" ]]; then
+            echo "::error::Only ALERT is accepted. Recovery cannot re-enable the chatbot."
+            exit 1
+          fi
+
+          if [[ "$MONITOR_ID" != "manual-test" && ! "$MONITOR_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::monitor_id must be a numeric Datadog monitor ID or manual-test."
+            exit 1
+          fi
+
+          {
+            printf '### Datadog chatbot kill-switch test\n\n'
+            printf '**SIMULATION ONLY: no service or configuration was changed.**\n\n'
+            printf -- '- Monitor: `%s`\n' "$MONITOR_ID"
+            printf -- '- Alert state: `%s`\n' "$ALERT_STATE"
+            printf -- '- Simulated desired state: `chatbot_enabled=false`\n'
+            printf -- '- Run ID: `%s`\n' "$GITHUB_RUN_ID"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf '\nRepeated runs request the same disabled state, never a toggle.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Simulation succeeded: chatbot_enabled=false; no shutdown was performed."
